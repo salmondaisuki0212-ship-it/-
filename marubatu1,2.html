@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>４手目で１手目が消える○×ゲーム（CPU強化版）</title>
+  <style>
+    body{font-family:sans-serif;display:flex;justify-content:center;align-items:center;height:100vh;background:#111;color:#eee;margin:0}
+    .game{width:320px;text-align:center}
+    .board{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin:20px 0}
+    .cell{width:100px;height:100px;background:#222;display:flex;justify-content:center;align-items:center;font-size:48px;cursor:pointer}
+    .cell.taken{cursor:not-allowed}
+    button{margin:5px;padding:8px 12px}
+  </style>
+</head>
+<body>
+  <div class="game">
+    <h1>４手目で１手目が消える○×ゲーム</h1>
+    <div id="status">先手（X）の番です</div>
+    <div class="board" id="board"></div>
+    <button id="resetBtn">リセット</button>
+    <button id="cpuBtn">CPU対戦: OFF</button>
+  </div>
+  <script>
+    const boardEl=document.getElementById('board');
+    const statusEl=document.getElementById('status');
+    const resetBtn=document.getElementById('resetBtn');
+    const cpuBtn=document.getElementById('cpuBtn');
+    const LINES=[[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+
+    let board,turn,xQueue,oQueue,playing,cpuMode;
+
+    function init(start='X'){
+      board=Array(9).fill(null);
+      turn=start;
+      xQueue=[];
+      oQueue=[];
+      playing=true;
+      renderBoard();
+      updateStatus();
+    }
+
+    function renderBoard(){
+      boardEl.innerHTML='';
+      for(let i=0;i<9;i++){
+        const cell=document.createElement('div');
+        cell.className='cell';
+        cell.dataset.index=i;
+        cell.addEventListener('click',()=>onCellClick(i));
+        boardEl.appendChild(cell);
+      }
+      updateCells();
+    }
+
+    function onCellClick(idx){
+      if(!playing) return;
+      if(board[idx]) return;
+      if(cpuMode && turn==='O') return; // CPUの番は人が打てない
+      placeMark(idx,turn);
+      if(checkEnd()) return;
+      turn=(turn==='X')?'O':'X';
+      updateStatus();
+      if(cpuMode && turn==='O' && playing){
+        setTimeout(cpuMove,400);
+      }
+    }
+
+    function placeMark(idx,player){
+      board[idx]=player;
+      const queue=(player==='X')?xQueue:oQueue;
+      queue.push(idx);
+      if(queue.length>3){
+        const oldest=queue.shift();
+        board[oldest]=null;
+      }
+      updateCells();
+    }
+
+    function isWin(player){
+      return LINES.some(line=>line.every(i=>board[i]===player));
+    }
+
+    function checkEnd(){
+      if(isWin(turn)){
+        statusEl.textContent=turn+' の勝ち！';
+        playing=false;
+        return true;
+      }
+      return false;
+    }
+
+    function updateCells(){
+      for(let i=0;i<9;i++){
+        const cell=boardEl.querySelector(`.cell[data-index="${i}"]`);
+        cell.textContent=board[i]||'';
+        cell.classList.toggle('taken',!!board[i]);
+      }
+    }
+
+    function updateStatus(){
+      if(!playing) return;
+      statusEl.textContent=(turn==='X')?'先手(X)の番です':'後手(O)の番です';
+    }
+
+    // CPUのロジック（勝ち→ブロック→中央→隅→その他）
+    function cpuMove(){
+      // 1. 勝ち筋チェック
+      let move=findWinningMove('O');
+      if(move===null){
+        // 2. ブロック
+        move=findWinningMove('X');
+      }
+      if(move===null){
+        // 3. 中央
+        if(board[4]===null) move=4;
+      }
+      if(move===null){
+        // 4. 隅
+        let corners=[0,2,6,8].filter(i=>board[i]===null);
+        if(corners.length>0) move=corners[Math.floor(Math.random()*corners.length)];
+      }
+      if(move===null){
+        // 5. 残り
+        let empty=board.map((v,i)=>v?null:i).filter(v=>v!==null);
+        if(empty.length>0) move=empty[0];
+      }
+      if(move!==null){
+        placeMark(move,'O');
+        if(checkEnd()) return;
+        turn='X';
+        updateStatus();
+      }
+    }
+
+    // playerが勝てる位置を探す
+    function findWinningMove(player){
+      for(let line of LINES){
+        const marks=line.map(i=>board[i]);
+        if(marks.filter(v=>v===player).length===2 && marks.includes(null)){
+          return line[marks.indexOf(null)];
+        }
+      }
+      return null;
+    }
+
+    resetBtn.addEventListener('click',()=>init('X'));
+    cpuBtn.addEventListener('click',()=>{
+      cpuMode=!cpuMode;
+      cpuBtn.textContent='CPU対戦: '+(cpuMode?'ON':'OFF');
+      init('X');
+    });
+
+    cpuMode=false;
+    init('X');
+  </script>
+</body>
+</html>
